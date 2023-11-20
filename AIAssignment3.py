@@ -1,163 +1,99 @@
 import streamlit as st
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from keras.models import load_model
 import pickle
-import numpy as np
+from keras.models import load_model
 
 # Load the trained model
 final_model_path = "final_model.h5"
 final_model = load_model(final_model_path)
 
-with open("scaler.pkl", "rb") as scaler_file:
+with open('scaler.pkl', 'rb') as scaler_file:
     scaler = pickle.load(scaler_file)
 
-st.title("Customer Churn Prediction")
-# Create input fields for user data
-st.write("Enter Information for the new customer:")
-tenure = st.number_input("Tenure in Months:", min_value=0)
-monthly_charges = st.number_input("Monthly Charges:", min_value=0.0)
-total_charges = st.number_input("Total Charges:", min_value=0.0)
-online_backup = st.selectbox("OnlineBackup:", ["Yes", "No"])
-gender = st.selectbox("Gender:", ["Male", "Female"])
-partner = st.selectbox("Partner:", ["Yes", "No"])
-multiple_lines = st.selectbox(
-    "MultipleLines:", ["Yes", "No phone service", "No"])
-internet_service = st.selectbox("InternetService:", ["DSL", "Fiber optic"])
-online_security = st.selectbox("OnlineSecurity:", ["Yes", "No"])
-device_protection = st.selectbox("DeviceProtection:", ["Yes", "No"])
-tech_support = st.selectbox("TechSupport:", ["Yes", "No"])
-contract = st.selectbox(
-    "Contract:", ["Month-to-month", "One year", "Two year"])
-paperless_billing = st.selectbox("PaperlessBilling:", ["Yes", "No"])
-payment_method = st.selectbox("PaymentMethod:", [
-                              "Electronic check", "Mailed check", "Bank transfer (automatic)", "Credit card (automatic)"])
+def preprocess_input(data):
+    data_frame = pd.DataFrame(data, index=[0])
+    
+    # Replace empty strings with NaN and fill with mean for numeric columns
+    numeric_columns = ["tenure", "MonthlyCharges", "TotalCharges", "customerID"]
+    for columns in numeric_columns:
+        data_frame[columns] = pd.to_numeric(data_frame[columns], errors='coerce')
+        data_frame[columns].fillna(data_frame[columns].mean(), inplace=True)
+        
 
-user_input = pd.DataFrame({
-    "tenure": [tenure],
-    "MonthlyCharges": [monthly_charges],
-    "TotalCharges": [total_charges],
-    "OnlineBackup": [online_backup],
-    "gender": [gender],
-    "Partner": [partner],
-    "MultipleLines": [multiple_lines],
-    "InternetService": [internet_service],
-    "OnlineSecurity": [online_security],
-    "DeviceProtection": [device_protection],
-    "TechSupport": [tech_support],
-    "Contract": [contract],
-    "PaperlessBilling": [paperless_billing],
-    "PaymentMethod": [payment_method]
-})
+    # Mapping categorical columns
+    categorical_columns = {
+        "Contract": ["Month-to-month", "One year", "Two year"],
+        "PaymentMethod": ["Electronic check", "Mailed check", "Bank transfer (automatic)", "Credit card (automatic)"],
+        "OnlineSecurity": ["Yes", "No"],
+        "TechSupport": ["Yes", "No"],
+        "OnlineBackup": ["Yes", "No"],
+        "InternetService": ["DSL", "Fiber optic"],
+    }
+    
+    ['tenure', 'MonthlyCharges', 'TotalCharges', 'customerID', 'Contract', 'PaymentMethod', 'OnlineSecurity', 'TechSupport', 'OnlineBackup', 'InternetService']
 
-label_encoders = {}
-categorical_features = ["OnlineBackup", "gender", "Partner", "OnlineSecurity",
-                        "DeviceProtection", "TechSupport", "Contract", "PaperlessBilling", "PaymentMethod"]
-for feature in categorical_features:
-    le = LabelEncoder()
-    le.fit(user_input[feature])
-    label_encoders[feature] = le
+    # Encode categorical columns
+    label_encoders = {}
+    for columns, values in categorical_columns.items():
+        data_frame[columns] = data_frame[columns].apply(lambda x: values.index(x) if x in values else -1)  # Encode categorical columns
+        label_encoders[columns] = values
 
-for feature in categorical_features:
-    user_input[feature] = label_encoders[feature].transform(
-        user_input[feature])
+    # Scale the data using the loaded scaler
+    scaled_data = scaler.transform(data_frame)
+    return scaled_data
 
-if st.button("Predict"):
-    input_data = pd.DataFrame(user_input, index=[0])
-    input_data.replace(" ", np.nan, inplace=True)
-    input_data.fillna(input_data.mean(), inplace=True)
-    input_data = scaler.transform(input_data)
-    prediction = final_model.predict(input_data)
-    churn_probability = prediction[0][0]
 
-    st.write(f"Churn Probability: {churn_probability:.4f}")
+# Function to make predictions
+def predict_churn(data):
+    scaled_data = preprocess_input(data)
+    predictions = final_model.predict(scaled_data)
+    churn_probability = predictions[0][0]
 
-    if churn_probability > 0.5000:
-        st.write("This customer is likely to churn")
+    if churn_probability > 0.5:
+        prediction = "Churn"
+        confidence = churn_probability
     else:
-        st.write("This customer is not likely to churn")
+        prediction = "No Churn"
+        confidence = 1 - churn_probability
 
+    return prediction, confidence
 
-# import streamlit as st
-# import pandas as pd
-# from sklearn.preprocessing import StandardScaler
-# from keras.models import load_model
-# import pickle
-# import numpy as np
+# Streamlit app
+def main():
+    # Create input fields for user data
+    st.title("Customer Churn Prediction")
+    st.write("Enter Information for the new customer:")
+    tenure = st.number_input("Tenure in Months:", min_value = 0)
+    monthly_charges = st.number_input("Monthly Charges:", min_value = 0.0)
+    total_charges = st.number_input("Total Charges:", min_value = 0.0)
+    customerID = st.number_input("Customer ID: ", min_value = 0)
+    contract = st.selectbox(
+        "Contract:", ["Month-to-month", "One year", "Two year"])
+    payment_method = st.selectbox("PaymentMethod:", [
+                              "Electronic check", "Mailed check", "Bank transfer (automatic)", "Credit card (automatic)"])
+    online_security = st.selectbox("OnlineSecurity:", ["Yes", "No"])
+    tech_support = st.selectbox("TechSupport:", ["Yes", "No"])
+    online_backup = st.selectbox("OnlineBackup:", ["Yes", "No"])
+    internet_service = st.selectbox("InternetService:", ["DSL", "Fiber optic"])
+    
 
-# # Load the trained model
-# final_model_path = "final_model.h5"
-# final_model = load_model(final_model_path)
+    user_input = pd.DataFrame({
+        "tenure": [tenure],
+        "MonthlyCharges": [monthly_charges],
+        "TotalCharges": [total_charges],
+        "customerID": [customerID],
+        "Contract": [contract],
+        "PaymentMethod": [payment_method],
+        "OnlineSecurity": [online_security],
+        "TechSupport": [tech_support],
+        "OnlineBackup": [online_backup],
+        "InternetService": [internet_service]
+    })
 
-# with open("scaler.pkl", "rb") as scaler_file:
-#     scaler = pickle.load(scaler_file)
+    if st.button("Predict Churn"):
+        prediction, confidence = predict_churn(user_input)
 
-# st.title("Customer Churn Prediction")
-# # Create input fields for user data
-# st.write("Enter Information for the new customer:")
-# tenure = st.number_input("Tenure in Months:", min_value=0)
-# monthly_charges = st.number_input("Monthly Charges:", min_value=0.0)
-# total_charges = st.number_input("Total Charges:", min_value=0.0)
-# online_backup = st.selectbox("OnlineBackup:", ["Yes", "No"])
-# gender = st.selectbox("Gender:", ["Male", "Female"])
-# partner = st.selectbox("Partner:", ["Yes", "No"])
-# multiple_lines = st.selectbox("MultipleLines:", ["Yes", "No phone service", "No"])
-# internet_service = st.selectbox("InternetService:", ["DSL", "Fiber optic"])
-# online_security = st.selectbox("OnlineSecurity:", ["Yes", "No"])
-# device_protection = st.selectbox("DeviceProtection:", ["Yes", "No"])
-# tech_support = st.selectbox("TechSupport:", ["Yes", "No"])
-# contract = st.selectbox("Contract:", ["Month-to-month", "One year", "Two year"])
-# paperless_billing = st.selectbox("PaperlessBilling:", ["Yes", "No"])
-# payment_method = st.selectbox("PaymentMethod:", ["Electronic check", "Mailed check", "Bank transfer (automatic)", "Credit card (automatic)"])
+        st.write(f"Prediction: {prediction}, Confidence: {round(confidence * 100, 2)}%")
 
-# user_input = pd.DataFrame({
-#     "tenure": [tenure],
-#     "MonthlyCharges": [monthly_charges],
-#     "TotalCharges": [total_charges],
-#     "OnlineBackup": [online_backup],
-#     "gender": [gender],
-#     "Partner": [partner],
-#     "MultipleLines": [multiple_lines],
-#     "InternetService": [internet_service],
-#     "OnlineSecurity": [online_security],
-#     "DeviceProtection": [device_protection],
-#     "TechSupport": [tech_support],
-#     "Contract": [contract],
-#     "PaperlessBilling": [paperless_billing],
-#     "PaymentMethod": [payment_method]
-# })
-
-# # Load the label encoders
-# with open("label_encoders.pkl", "rb") as label_encoders_file:
-#     label_encoders = pickle.load(label_encoders_file)
-
-# categorical_features = ["OnlineBackup", "gender", "Partner", "OnlineSecurity", "DeviceProtection", "TechSupport", "Contract", "PaperlessBilling", "PaymentMethod"]
-
-# for feature in categorical_features:
-#     # Transform categorical columns using one-hot encoding
-#     user_input = pd.concat([user_input, pd.get_dummies(user_input[feature], prefix=feature)], axis=1)
-#     # Drop the original categorical column
-#     user_input.drop(feature, axis=1, inplace=True)
-
-# # Ensure all columns are present
-# missing_columns = set(label_encoders.keys()) - set(user_input.columns)
-# for column in missing_columns:
-#     user_input[column] = 0
-
-# # Reorder columns to match the trained model
-# user_input = user_input[label_encoders.keys()]
-
-# if st.button("Predict"):
-#     input_data = pd.DataFrame(user_input, index=[0])
-#     input_data.replace(" ", np.nan, inplace=True)
-#     input_data.fillna(input_data.mean(), inplace=True)
-#     input_data = scaler.transform(input_data)
-#     prediction = final_model.predict(input_data)
-#     churn_probability = prediction[0][0]
-
-#     st.write(f"Churn Probability: {churn_probability:.4f}")
-
-#     if churn_probability > 0.5000:
-#         st.write("This customer is likely to churn")
-#     else:
-#         st.write("This customer is not likely to churn")
+if __name__ == "__main__":
+    main()
